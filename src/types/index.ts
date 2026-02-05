@@ -99,19 +99,23 @@ export interface OutgoingMessage {
 // TTS Provider options
 export type TTSProvider = 'device' | 'custom' | 'elevenlabs';
 
+// STT Provider options
+export type STTProvider = 'vosk' | 'device' | 'custom';
+
 // App settings
 export interface AppSettings {
   gatewayUrl: string;
   gatewayToken: string;
-  wakeWord: WakeWordOption;
+  wakeWord: string; // Custom wake word (default: "computer")
   autoPlayResponses: boolean;
   keepScreenOn: boolean;
   hapticFeedback: boolean;
   voiceActivationSensitivity: number; // 0.0 - 1.0
-  // Advanced settings
-  picovoiceAccessKey: string;
+  // Vosk model settings
+  voskModelPath: string; // Path to downloaded Vosk model
+  voskLanguage: string; // e.g., 'de-DE', 'en-US'
   // STT settings
-  useCustomSTT: boolean;
+  sttProvider: STTProvider;
   customSTTUrl: string;
   // TTS settings
   ttsProvider: TTSProvider;
@@ -120,22 +124,7 @@ export interface AppSettings {
   elevenLabsVoiceId: string;
 }
 
-// Wake word options (Porcupine built-in keywords)
-export type WakeWordOption = 
-  | 'porcupine'
-  | 'bumblebee' 
-  | 'alexa'
-  | 'hey google'
-  | 'hey siri'
-  | 'ok google'
-  | 'jarvis'
-  | 'picovoice'
-  | 'computer'
-  | 'terminator'
-  | 'americano'
-  | 'blueberry'
-  | 'grapefruit'
-  | 'grasshopper';
+// Wake word is now a simple string - Vosk can detect any word via grammar!
 
 // Conversation history item
 export interface ConversationItem {

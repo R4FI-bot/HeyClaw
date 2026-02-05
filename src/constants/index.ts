@@ -3,20 +3,22 @@
  */
 
 import { Platform } from 'react-native';
-import type { AppSettings, PlatformFeatures, WakeWordOption, TTSProvider } from '../types';
+import type { AppSettings, PlatformFeatures, TTSProvider, STTProvider } from '../types';
 
 // Default settings
 export const DEFAULT_SETTINGS: AppSettings = {
   gatewayUrl: '',
   gatewayToken: '',
-  wakeWord: 'computer' as WakeWordOption, // Star Trek style!
+  wakeWord: 'computer', // Star Trek style! Can be any word with Vosk
   autoPlayResponses: true,
   keepScreenOn: false,
   hapticFeedback: true,
   voiceActivationSensitivity: 0.5,
-  picovoiceAccessKey: '', // Optional - for custom wake words
-  // STT settings - default: on-device (react-native-voice)
-  useCustomSTT: false,
+  // Vosk settings
+  voskModelPath: '', // Will be set after model download
+  voskLanguage: 'en-US', // Default to English, German available
+  // STT settings - default: Vosk (offline)
+  sttProvider: 'vosk' as STTProvider,
   customSTTUrl: '',
   // TTS settings - default: on-device (react-native-tts)
   ttsProvider: 'device' as TTSProvider,
@@ -32,24 +34,52 @@ export const PLATFORM_FEATURES: PlatformFeatures = {
   supportsAutoStart: Platform.OS === 'android',
 };
 
-// Available wake words (Porcupine built-in - no API key needed!)
-export const AVAILABLE_WAKE_WORDS: { label: string; value: WakeWordOption }[] = [
+// STT Provider options
+export const STT_PROVIDERS: { label: string; value: STTProvider; description: string }[] = [
+  { label: '🎤 Vosk (Offline)', value: 'vosk', description: 'Fast, fully offline, no API keys' },
+  { label: '📱 Device', value: 'device', description: 'Google/Apple cloud recognition' },
+  { label: '🌐 Custom Whisper', value: 'custom', description: 'Self-hosted Whisper endpoint' },
+];
+
+// Suggested wake words (Vosk can detect any word, but these work well)
+export const SUGGESTED_WAKE_WORDS: { label: string; value: string }[] = [
   { label: '🖖 Computer', value: 'computer' },   // Default - Star Trek
   { label: '🤖 Jarvis', value: 'jarvis' },       // Iron Man
-  { label: '🐝 Bumblebee', value: 'bumblebee' },
-  { label: '🦔 Porcupine', value: 'porcupine' },
-  { label: '🎤 Picovoice', value: 'picovoice' },
-  { label: '🔴 Terminator', value: 'terminator' },
-  { label: '☕ Americano', value: 'americano' },
-  { label: '🫐 Blueberry', value: 'blueberry' },
-  { label: '🍊 Grapefruit', value: 'grapefruit' },
-  { label: '🦗 Grasshopper', value: 'grasshopper' },
-  // These require Picovoice API key (commercial terms):
-  // { label: 'Alexa', value: 'alexa' },
-  // { label: 'Hey Google', value: 'hey google' },
-  // { label: 'Hey Siri', value: 'hey siri' },
-  // { label: 'OK Google', value: 'ok google' },
+  { label: '🎤 Hey Claw', value: 'hey claw' },   // HeyClaw brand
+  { label: '👋 Hello', value: 'hello' },
+  { label: '🇩🇪 Hallo', value: 'hallo' },       // German
+  { label: '🗣️ Assistent', value: 'assistent' }, // German
 ];
+
+// Vosk model info - user downloads separately
+export const VOSK_MODELS = {
+  // Small models (~50MB) - faster, less accurate
+  'en-US-small': {
+    name: 'vosk-model-small-en-us-0.15',
+    url: 'https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip',
+    size: '40MB',
+    language: 'English (US)',
+  },
+  'de-DE-small': {
+    name: 'vosk-model-small-de-0.15',
+    url: 'https://alphacephei.com/vosk/models/vosk-model-small-de-0.15.zip',
+    size: '45MB',
+    language: 'German',
+  },
+  // Large models (~1GB+) - slower, more accurate
+  'en-US-large': {
+    name: 'vosk-model-en-us-0.22',
+    url: 'https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip',
+    size: '1.8GB',
+    language: 'English (US)',
+  },
+  'de-DE-large': {
+    name: 'vosk-model-de-0.21',
+    url: 'https://alphacephei.com/vosk/models/vosk-model-de-0.21.zip',
+    size: '1.9GB',
+    language: 'German',
+  },
+};
 
 // Audio settings
 export const AUDIO_CONFIG = {

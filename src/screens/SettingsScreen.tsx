@@ -1,6 +1,6 @@
 /**
  * Settings Screen
- * Configure gateway connection, wake word, and other options
+ * Configure gateway connection, wake word, STT/TTS providers
  */
 
 import React, { useState } from 'react';
@@ -15,10 +15,11 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useAppStore } from '../store';
-import { COLORS, AVAILABLE_WAKE_WORDS, PLATFORM_FEATURES } from '../constants';
-import type { WakeWordOption, TTSProvider } from '../types';
+import { COLORS, SUGGESTED_WAKE_WORDS, PLATFORM_FEATURES, STT_PROVIDERS, VOSK_MODELS } from '../constants';
+import type { TTSProvider, STTProvider } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
@@ -27,7 +28,7 @@ type Props = {
 };
 
 const TTS_PROVIDERS: { label: string; value: TTSProvider; description: string }[] = [
-  { label: '📱 Device (Default)', value: 'device', description: 'On-device TTS, no API keys needed' },
+  { label: '📱 Device (Default)', value: 'device', description: 'On-device TTS, works offline' },
   { label: '🌐 Custom Endpoint', value: 'custom', description: 'Self-hosted Piper or XTTS' },
   { label: '🎙️ ElevenLabs', value: 'elevenlabs', description: 'Cloud TTS, requires API key' },
 ];
@@ -37,13 +38,16 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   
   const [gatewayUrl, setGatewayUrl] = useState(settings.gatewayUrl);
   const [gatewayToken, setGatewayToken] = useState(settings.gatewayToken);
-  const [picovoiceKey, setPicovoiceKey] = useState(settings.picovoiceAccessKey || '');
   const [showToken, setShowToken] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
+  // Wake word state
+  const [customWakeWord, setCustomWakeWord] = useState(settings.wakeWord || 'computer');
+  
   // STT state
-  const [useCustomSTT, setUseCustomSTT] = useState(settings.useCustomSTT || false);
+  const [sttProvider, setSttProvider] = useState<STTProvider>(settings.sttProvider || 'vosk');
   const [customSTTUrl, setCustomSTTUrl] = useState(settings.customSTTUrl || '');
+  const [voskModelPath, setVoskModelPath] = useState(settings.voskModelPath || '');
   
   // TTS state
   const [ttsProvider, setTtsProvider] = useState<TTSProvider>(settings.ttsProvider || 'device');
@@ -56,9 +60,10 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
     updateSettings({
       gatewayUrl,
       gatewayToken,
-      picovoiceAccessKey: picovoiceKey,
-      useCustomSTT,
+      wakeWord: customWakeWord.toLowerCase().trim(),
+      sttProvider,
       customSTTUrl,
+      voskModelPath,
       ttsProvider,
       customTTSUrl,
       elevenLabsApiKey,
@@ -67,8 +72,9 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
     Alert.alert('Saved', 'Settings have been saved');
   };
 
-  const handleWakeWordSelect = (wakeWord: WakeWordOption) => {
-    updateSettings({ wakeWord });
+  const handleWakeWordSelect = (wakeWord: string) => {
+    setCustomWakeWord(wakeWord);
+    updateSettings({ wakeWord: wakeWord.toLowerCase() });
   };
 
   const handleClearConversation = () => {
@@ -84,6 +90,10 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         },
       ]
     );
+  };
+
+  const openVoskModels = () => {
+    Linking.openURL('https://alphacephei.com/vosk/models');
   };
 
   return (
@@ -139,7 +149,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           </View>
 
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveButtonText}>Save Connection</Text>
+            <Text style={styles.saveButtonText}>Save Settings</Text>
           </TouchableOpacity>
         </View>
 
@@ -147,23 +157,40 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🎤 Wake Word</Text>
           <Text style={styles.sectionDescription}>
-            Say this phrase to activate HeyClaw
+            Say this phrase to activate HeyClaw (powered by Vosk)
           </Text>
           
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Custom Wake Word</Text>
+            <TextInput
+              style={styles.input}
+              value={customWakeWord}
+              onChangeText={setCustomWakeWord}
+              placeholder="computer"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.hint}>
+              Any word works! Try your name, "hey claw", or anything you like.
+            </Text>
+          </View>
+          
+          <Text style={styles.label}>Quick Select</Text>
           <View style={styles.wakeWordGrid}>
-            {AVAILABLE_WAKE_WORDS.map((item) => (
+            {SUGGESTED_WAKE_WORDS.map((item) => (
               <TouchableOpacity
                 key={item.value}
                 style={[
                   styles.wakeWordButton,
-                  settings.wakeWord === item.value && styles.wakeWordButtonActive,
+                  customWakeWord.toLowerCase() === item.value && styles.wakeWordButtonActive,
                 ]}
                 onPress={() => handleWakeWordSelect(item.value)}
               >
                 <Text
                   style={[
                     styles.wakeWordText,
-                    settings.wakeWord === item.value && styles.wakeWordTextActive,
+                    customWakeWord.toLowerCase() === item.value && styles.wakeWordTextActive,
                   ]}
                 >
                   {item.label}
@@ -174,7 +201,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
           <View style={styles.infoBox}>
             <Text style={styles.infoText}>
-              💡 All wake words work offline using Porcupine - no cloud required!
+              💡 Wake word detection is 100% offline using Vosk - no API keys or cloud needed!
             </Text>
           </View>
         </View>
@@ -183,25 +210,60 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🎤 Speech-to-Text</Text>
           <Text style={styles.sectionDescription}>
-            How your voice is transcribed to text
+            How your voice is transcribed after wake word
           </Text>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingInfo}>
-              <Text style={styles.settingLabel}>Use custom STT endpoint</Text>
-              <Text style={styles.settingDescription}>
-                Self-hosted Whisper or compatible API
-              </Text>
-            </View>
-            <Switch
-              value={useCustomSTT}
-              onValueChange={setUseCustomSTT}
-              trackColor={{ false: COLORS.surfaceLight, true: COLORS.primary }}
-              thumbColor={COLORS.text}
-            />
+          <View style={styles.providerGrid}>
+            {STT_PROVIDERS.map((provider) => (
+              <TouchableOpacity
+                key={provider.value}
+                style={[
+                  styles.providerButton,
+                  sttProvider === provider.value && styles.providerButtonActive,
+                ]}
+                onPress={() => setSttProvider(provider.value)}
+              >
+                <Text
+                  style={[
+                    styles.providerLabel,
+                    sttProvider === provider.value && styles.providerLabelActive,
+                  ]}
+                >
+                  {provider.label}
+                </Text>
+                <Text style={styles.providerDesc}>{provider.description}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {useCustomSTT && (
+          {sttProvider === 'vosk' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Vosk Model Path</Text>
+              <TextInput
+                style={styles.input}
+                value={voskModelPath}
+                onChangeText={setVoskModelPath}
+                placeholder="/path/to/vosk-model"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Text style={styles.hint}>
+                Download model from alphacephei.com/vosk/models
+              </Text>
+              <TouchableOpacity style={styles.linkButton} onPress={openVoskModels}>
+                <Text style={styles.linkButtonText}>📥 Download Vosk Models</Text>
+              </TouchableOpacity>
+              
+              <View style={styles.modelInfo}>
+                <Text style={styles.modelInfoTitle}>Recommended Models:</Text>
+                <Text style={styles.modelInfoItem}>🇺🇸 English: vosk-model-small-en-us-0.15 (40MB)</Text>
+                <Text style={styles.modelInfoItem}>🇩🇪 German: vosk-model-small-de-0.15 (45MB)</Text>
+              </View>
+            </View>
+          )}
+
+          {sttProvider === 'custom' && (
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Custom STT URL</Text>
               <TextInput
@@ -220,10 +282,10 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             </View>
           )}
 
-          {!useCustomSTT && (
+          {sttProvider === 'device' && (
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                💡 Using on-device speech recognition (Google/Apple). Works offline, no API keys needed!
+                💡 Using Google/Apple cloud speech recognition. Good accuracy but requires internet.
               </Text>
             </View>
           )}
@@ -236,25 +298,25 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             How responses are spoken back to you
           </Text>
 
-          <View style={styles.ttsProviderGrid}>
+          <View style={styles.providerGrid}>
             {TTS_PROVIDERS.map((provider) => (
               <TouchableOpacity
                 key={provider.value}
                 style={[
-                  styles.ttsProviderButton,
-                  ttsProvider === provider.value && styles.ttsProviderButtonActive,
+                  styles.providerButton,
+                  ttsProvider === provider.value && styles.providerButtonActive,
                 ]}
                 onPress={() => setTtsProvider(provider.value)}
               >
                 <Text
                   style={[
-                    styles.ttsProviderLabel,
-                    ttsProvider === provider.value && styles.ttsProviderLabelActive,
+                    styles.providerLabel,
+                    ttsProvider === provider.value && styles.providerLabelActive,
                   ]}
                 >
                   {provider.label}
                 </Text>
-                <Text style={styles.ttsProviderDesc}>{provider.description}</Text>
+                <Text style={styles.providerDesc}>{provider.description}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -392,22 +454,6 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
           {showAdvanced && (
             <View style={styles.advancedContent}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Picovoice Access Key (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={picovoiceKey}
-                  onChangeText={setPicovoiceKey}
-                  placeholder="For custom wake words only"
-                  placeholderTextColor={COLORS.textSecondary}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Text style={styles.hint}>
-                  Only needed if you want to train custom wake words via console.picovoice.ai
-                </Text>
-              </View>
-
               {/* Platform Info */}
               <View style={styles.featureList}>
                 <Text style={styles.featureItem}>
@@ -426,6 +472,12 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
                   ℹ️ iOS limitations: Wake word detection only works while the app is open due to Apple restrictions.
                 </Text>
               )}
+
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  🎉 No API keys required! HeyClaw uses Vosk for fully offline wake word detection and speech recognition.
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -443,7 +495,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Version */}
-        <Text style={styles.version}>HeyClaw v1.0.0</Text>
+        <Text style={styles.version}>HeyClaw v1.0.0 • Powered by Vosk</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -519,6 +571,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  linkButton: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  linkButtonText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  modelInfo: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+  },
+  modelInfoTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  modelInfoItem: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    marginBottom: 4,
+  },
   wakeWordGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -544,30 +625,30 @@ const styles = StyleSheet.create({
   wakeWordTextActive: {
     color: COLORS.text,
   },
-  ttsProviderGrid: {
+  providerGrid: {
     gap: 8,
     marginBottom: 16,
   },
-  ttsProviderButton: {
+  providerButton: {
     backgroundColor: COLORS.surface,
     padding: 12,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  ttsProviderButtonActive: {
+  providerButtonActive: {
     borderColor: COLORS.primary,
     backgroundColor: COLORS.surfaceLight,
   },
-  ttsProviderLabel: {
+  providerLabel: {
     color: COLORS.textSecondary,
     fontSize: 16,
     fontWeight: '500',
   },
-  ttsProviderLabelActive: {
+  providerLabelActive: {
     color: COLORS.text,
   },
-  ttsProviderDesc: {
+  providerDesc: {
     color: COLORS.textSecondary,
     fontSize: 12,
     marginTop: 4,
@@ -625,7 +706,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     gap: 8,
-    marginTop: 16,
   },
   featureItem: {
     fontSize: 14,

@@ -52,10 +52,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
         }
 
-        // Configure STT service
+        // Configure STT service (Vosk needs model path)
         sttService.configure({
-          useCustomSTT: settings.useCustomSTT,
+          provider: settings.sttProvider,
           customSTTUrl: settings.customSTTUrl,
+          voskModelPath: settings.voskModelPath,
         });
 
         // Configure TTS service
@@ -95,14 +96,16 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [settings.gatewayUrl, settings.gatewayToken]);
 
-  // Reconfigure STT/TTS when settings change
+  // Reconfigure STT when settings change
   useEffect(() => {
     sttService.configure({
-      useCustomSTT: settings.useCustomSTT,
+      provider: settings.sttProvider,
       customSTTUrl: settings.customSTTUrl,
+      voskModelPath: settings.voskModelPath,
     });
-  }, [settings.useCustomSTT, settings.customSTTUrl]);
+  }, [settings.sttProvider, settings.customSTTUrl, settings.voskModelPath]);
 
+  // Reconfigure TTS when settings change
   useEffect(() => {
     ttsService.configure({
       provider: settings.ttsProvider,
@@ -124,7 +127,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     });
 
     return unsubscribe;
-  }, [settings.wakeWord]);
+  }, [settings.wakeWord, settings.voskModelPath]);
 
   // WebSocket error handler
   useEffect(() => {
@@ -175,27 +178,31 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return unsubscribe;
   }, [settings.autoPlayResponses, addMessage]);
 
-  // Start wake word detection
-  const startWakeWordDetection = async () => {
+  // Start wake word detection using Vosk
+  const startWakeWordDetection = useCallback(async () => {
     try {
-      // Use Picovoice access key if provided, otherwise built-in works for basic keywords
-      const accessKey = settings.picovoiceAccessKey || '';
-      
-      if (!accessKey) {
-        // For now, just set state - wake word requires key
-        console.log('[Home] No Picovoice key - wake word disabled');
+      if (!settings.voskModelPath) {
+        console.log('[Home] No Vosk model path - wake word disabled');
+        console.log('[Home] Please download a model from alphacephei.com/vosk/models');
         setListeningState('idle');
         return;
       }
 
-      await wakeWordService.initialize(accessKey, settings.wakeWord);
+      // Initialize Vosk wake word service
+      await wakeWordService.initialize({
+        wakeWord: settings.wakeWord,
+        modelPath: settings.voskModelPath,
+      });
+      
       await wakeWordService.startListening();
       setListeningState('wake_word');
+      console.log('[Home] Wake word detection started:', settings.wakeWord);
     } catch (error) {
       console.error('Failed to start wake word detection:', error);
       setListeningState('idle');
+      setError('Failed to initialize Vosk. Check model path.');
     }
-  };
+  }, [settings.wakeWord, settings.voskModelPath, setListeningState, setError]);
 
   // Wake word detected handler
   useEffect(() => {
@@ -208,24 +215,30 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // Handle wake word detection
   const handleWakeWordDetected = useCallback(async () => {
-    console.log('Wake word detected!');
+    console.log('[Home] Wake word detected!');
     setListeningState('recording');
     
     try {
+      // Stop wake word detection while recording
+      await wakeWordService.stopListening();
+      
       // TODO: Play activation sound
       
-      // For on-device STT, start listening directly (streaming recognition)
-      if (!settings.useCustomSTT) {
-        await sttService.startListening();
-      } else {
+      // Start full STT based on provider
+      if (settings.sttProvider === 'custom') {
         // For custom STT, record audio and send to endpoint
         await audioService.startRecording();
+      } else {
+        // For Vosk or device STT, start listening directly (streaming recognition)
+        await sttService.startListening();
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
       setListeningState('wake_word');
+      // Resume wake word detection
+      wakeWordService.startListening();
     }
-  }, [setListeningState, settings.useCustomSTT]);
+  }, [setListeningState, settings.sttProvider]);
 
   // Recording complete handler (for custom STT mode)
   useEffect(() => {
@@ -237,7 +250,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return unsubscribe;
   }, []);
 
-  // On-device STT transcription handler
+  // STT transcription handler
   useEffect(() => {
     const unsubscribe = sttService.onTranscription((text, isFinal) => {
       console.log('[Home] STT result:', text, 'final:', isFinal);
@@ -256,11 +269,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     
     try {
       // Use custom STT to transcribe audio
-      const transcribedText = await sttService.transcribeBase64(audioBase64);
+      const transcribedText = await sttService.transcribeAudio(audioBase64);
       
       if (!transcribedText.trim()) {
         console.log('[Home] Empty transcription, ignoring');
-        setListeningState('wake_word');
+        resumeWakeWordDetection();
         return;
       }
       
@@ -269,11 +282,11 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     } catch (error) {
       console.error('Failed to process recording:', error);
       setError('Failed to transcribe voice message');
-      setListeningState('wake_word');
+      resumeWakeWordDetection();
     }
   };
 
-  // Handle completed transcription (from either on-device or custom STT)
+  // Handle completed transcription (from either Vosk, device, or custom STT)
   const handleTranscriptionComplete = async (text: string) => {
     setListeningState('processing');
     
@@ -297,9 +310,21 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       setError('Failed to send voice message');
     } finally {
       // Resume wake word listening
-      setListeningState('wake_word');
+      resumeWakeWordDetection();
     }
   };
+
+  // Resume wake word detection after recording
+  const resumeWakeWordDetection = useCallback(async () => {
+    setListeningState('wake_word');
+    try {
+      if (wakeWordService.getIsInitialized()) {
+        await wakeWordService.startListening();
+      }
+    } catch (error) {
+      console.error('[Home] Failed to resume wake word:', error);
+    }
+  }, [setListeningState]);
 
   // Manual button press - toggle recording or send test message
   const handleButtonPress = useCallback(async () => {
@@ -317,28 +342,28 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     if (listeningState === 'recording') {
       // Stop recording/listening
-      if (!settings.useCustomSTT) {
-        await sttService.stopListening();
-      } else {
+      if (settings.sttProvider === 'custom') {
         await audioService.stopRecording();
+      } else {
+        await sttService.stopListening();
       }
     } else {
       // Start recording manually (simulates wake word)
       handleWakeWordDetected();
     }
-  }, [listeningState, handleWakeWordDetected, navigation, settings.useCustomSTT]);
+  }, [listeningState, handleWakeWordDetected, navigation, settings.sttProvider]);
 
   // Long press - cancel recording
   const handleButtonLongPress = useCallback(async () => {
     if (listeningState === 'recording') {
-      if (!settings.useCustomSTT) {
-        await sttService.cancel();
-      } else {
+      if (settings.sttProvider === 'custom') {
         await audioService.cancelRecording();
+      } else {
+        await sttService.cancel();
       }
-      setListeningState('wake_word');
+      resumeWakeWordDetection();
     }
-  }, [listeningState, setListeningState, settings.useCustomSTT]);
+  }, [listeningState, settings.sttProvider, resumeWakeWordDetection]);
 
   // Play audio from conversation
   const handlePlayAudio = useCallback((audioUrl: string) => {
@@ -352,6 +377,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
     if (connectionState === 'connecting') {
       return 'Connecting...';
+    }
+    if (!settings.voskModelPath) {
+      return '⚠️ Download Vosk model in Settings';
     }
     if (listeningState === 'recording') {
       return 'Listening... tap to stop';

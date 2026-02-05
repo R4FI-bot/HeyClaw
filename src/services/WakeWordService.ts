@@ -1,72 +1,65 @@
 /**
- * Wake Word Detection Service using Porcupine
+ * Wake Word Detection Service using Vosk
  * 
- * NOTE: Requires a Picovoice Access Key from https://console.picovoice.ai/
- * The access key should be stored in app settings.
+ * Uses Vosk with grammar mode for efficient offline wake word detection.
+ * No API keys required! Just download a Vosk model.
+ * 
+ * How it works:
+ * - Vosk runs in grammar mode, only listening for specific words
+ * - This is more efficient than full STT recognition
+ * - Supports any wake word (not limited to pre-trained keywords)
  */
 
-import { Porcupine, BuiltInKeywords } from '@picovoice/porcupine-react-native';
-import type { WakeWordOption } from '../types';
+import Vosk from 'react-native-vosk';
 
 type WakeWordHandler = () => void;
 
-// Map our wake word options to Porcupine's built-in keywords
-const WAKE_WORD_MAP: Record<WakeWordOption, BuiltInKeywords> = {
-  'porcupine': BuiltInKeywords.PORCUPINE,
-  'bumblebee': BuiltInKeywords.BUMBLEBEE,
-  'alexa': BuiltInKeywords.ALEXA,
-  'hey google': BuiltInKeywords.HEY_GOOGLE,
-  'hey siri': BuiltInKeywords.HEY_SIRI,
-  'ok google': BuiltInKeywords.OK_GOOGLE,
-  'jarvis': BuiltInKeywords.JARVIS,
-  'picovoice': BuiltInKeywords.PICOVOICE,
-  'computer': BuiltInKeywords.COMPUTER,
-  'terminator': BuiltInKeywords.TERMINATOR,
-  'americano': BuiltInKeywords.AMERICANO,
-  'blueberry': BuiltInKeywords.BLUEBERRY,
-  'grapefruit': BuiltInKeywords.GRAPEFRUIT,
-  'grasshopper': BuiltInKeywords.GRASSHOPPER,
-};
+interface WakeWordConfig {
+  wakeWord: string;
+  modelPath: string;
+}
 
 class WakeWordService {
-  private porcupine: Porcupine | null = null;
+  private vosk: Vosk | null = null;
   private isListening: boolean = false;
-  private accessKey: string = '';
-  private currentWakeWord: WakeWordOption = 'porcupine';
+  private isInitialized: boolean = false;
+  private currentWakeWord: string = 'computer';
   private handlers: Set<WakeWordHandler> = new Set();
 
   /**
-   * Initialize Porcupine with access key
+   * Initialize Vosk with model path and wake word
    */
-  async initialize(accessKey: string, wakeWord: WakeWordOption = 'porcupine'): Promise<void> {
-    this.accessKey = accessKey;
-    this.currentWakeWord = wakeWord;
-
-    if (!accessKey) {
-      throw new Error('Picovoice access key is required');
+  async initialize(config: WakeWordConfig): Promise<void> {
+    const { wakeWord, modelPath } = config;
+    
+    if (!modelPath) {
+      throw new Error('Vosk model path is required. Please download a model first.');
     }
 
-    try {
-      const keyword = WAKE_WORD_MAP[wakeWord];
-      
-      this.porcupine = await Porcupine.fromBuiltInKeywords(
-        accessKey,
-        [keyword],
-        this.handleDetection.bind(this)
-      );
+    this.currentWakeWord = wakeWord.toLowerCase();
 
-      console.log('[WakeWord] Initialized with keyword:', wakeWord);
+    try {
+      this.vosk = new Vosk();
+      
+      // Load the Vosk model
+      await this.vosk.loadModel(modelPath);
+      
+      this.isInitialized = true;
+      console.log('[WakeWord] Vosk initialized with wake word:', this.currentWakeWord);
     } catch (error) {
-      console.error('[WakeWord] Initialization failed:', error);
+      console.error('[WakeWord] Vosk initialization failed:', error);
+      this.isInitialized = false;
       throw error;
     }
   }
 
   /**
-   * Change the wake word (requires re-initialization)
+   * Change the wake word (no re-initialization needed with Vosk!)
    */
-  async setWakeWord(wakeWord: WakeWordOption): Promise<void> {
-    if (wakeWord === this.currentWakeWord && this.porcupine) {
+  async setWakeWord(wakeWord: string): Promise<void> {
+    const normalizedWord = wakeWord.toLowerCase();
+    
+    if (normalizedWord === this.currentWakeWord) {
       return;
     }
 
@@ -76,8 +69,8 @@ class WakeWordService {
       await this.stopListening();
     }
 
-    await this.cleanup();
-    await this.initialize(this.accessKey, wakeWord);
+    this.currentWakeWord = normalizedWord;
+    console.log('[WakeWord] Wake word changed to:', this.currentWakeWord);
 
     if (wasListening) {
       await this.startListening();
@@ -85,11 +78,14 @@ class WakeWordService {
   }
 
   /**
-   * Start listening for wake word
+   * Start listening for wake word using grammar mode
+   * 
+   * Grammar mode makes Vosk only listen for specific words,
+   * which is more efficient than full speech recognition.
    */
   async startListening(): Promise<void> {
-    if (!this.porcupine) {
-      throw new Error('Wake word service not initialized');
+    if (!this.isInitialized || !this.vosk) {
+      throw new Error('Wake word service not initialized. Call initialize() first.');
     }
 
     if (this.isListening) {
@@ -97,9 +93,20 @@ class WakeWordService {
     }
 
     try {
-      await this.porcupine.start();
+      // Set up result handler before starting
+      this.vosk.onResult(this.handleResult.bind(this));
+      this.vosk.onPartialResult(this.handlePartialResult.bind(this));
+      this.vosk.onError(this.handleError.bind(this));
+      this.vosk.onFinalResult(this.handleFinalResult.bind(this));
+      
+      // Start Vosk in grammar mode - only listen for wake word + unknown
+      // [unk] catches everything else so Vosk doesn't get confused
+      const grammar = [this.currentWakeWord, '[unk]'];
+      
+      await this.vosk.start({ grammar });
+      
       this.isListening = true;
-      console.log('[WakeWord] Started listening');
+      console.log('[WakeWord] Started listening for:', this.currentWakeWord);
     } catch (error) {
       console.error('[WakeWord] Failed to start listening:', error);
       throw error;
@@ -110,12 +117,12 @@ class WakeWordService {
    * Stop listening for wake word
    */
   async stopListening(): Promise<void> {
-    if (!this.porcupine || !this.isListening) {
+    if (!this.vosk || !this.isListening) {
       return;
     }
 
     try {
-      await this.porcupine.stop();
+      await this.vosk.stop();
       this.isListening = false;
       console.log('[WakeWord] Stopped listening');
     } catch (error) {
@@ -124,9 +131,61 @@ class WakeWordService {
     }
   }
 
-  private handleDetection(keywordIndex: number): void {
-    console.log('[WakeWord] Detected! Index:', keywordIndex);
-    this.notifyHandlers();
+  /**
+   * Handle Vosk partial results (streaming recognition)
+   */
+  private handlePartialResult(partial: string): void {
+    // Partial results for wake word detection
+    const text = partial.toLowerCase().trim();
+    
+    if (text.includes(this.currentWakeWord)) {
+      console.log('[WakeWord] Partial match detected:', text);
+      // Don't trigger on partial - wait for final
+    }
+  }
+
+  /**
+   * Handle Vosk results
+   */
+  private handleResult(result: string): void {
+    this.checkForWakeWord(result);
+  }
+
+  /**
+   * Handle Vosk final results
+   */
+  private handleFinalResult(result: string): void {
+    this.checkForWakeWord(result);
+  }
+
+  /**
+   * Check if result contains wake word
+   */
+  private checkForWakeWord(result: string): void {
+    try {
+      // Vosk returns JSON: { "text": "computer" }
+      const parsed = JSON.parse(result);
+      const text = (parsed.text || '').toLowerCase().trim();
+      
+      if (text.includes(this.currentWakeWord)) {
+        console.log('[WakeWord] Detected!', text);
+        this.notifyHandlers();
+      }
+    } catch {
+      // If not JSON, check raw text
+      const text = result.toLowerCase().trim();
+      if (text.includes(this.currentWakeWord)) {
+        console.log('[WakeWord] Detected (raw)!', text);
+        this.notifyHandlers();
+      }
+    }
+  }
+
+  /**
+   * Handle Vosk errors
+   */
+  private handleError(error: string): void {
+    console.error('[WakeWord] Vosk error:', error);
   }
 
   /**
@@ -151,11 +210,13 @@ class WakeWordService {
    * Clean up resources
    */
   async cleanup(): Promise<void> {
-    if (this.porcupine) {
+    if (this.vosk) {
       await this.stopListening();
-      await this.porcupine.delete();
-      this.porcupine = null;
+      // Vosk cleanup if available
+      this.vosk = null;
     }
+    this.isInitialized = false;
+    this.handlers.clear();
   }
 
   /**
@@ -166,9 +227,16 @@ class WakeWordService {
   }
 
   /**
+   * Check if initialized
+   */
+  getIsInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
    * Get current wake word
    */
-  getCurrentWakeWord(): WakeWordOption {
+  getCurrentWakeWord(): string {
     return this.currentWakeWord;
   }
 }
