@@ -3,7 +3,7 @@
  */
 
 import { Platform } from 'react-native';
-import type { AppSettings, PlatformFeatures, WakeWordOption } from '../types';
+import type { AppSettings, PlatformFeatures, WakeWordOption, TTSProvider } from '../types';
 
 // Default settings
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -15,6 +15,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hapticFeedback: true,
   voiceActivationSensitivity: 0.5,
   picovoiceAccessKey: '', // Optional - for custom wake words
+  // STT settings - default: on-device (react-native-voice)
+  useCustomSTT: false,
+  customSTTUrl: '',
+  // TTS settings - default: on-device (react-native-tts)
+  ttsProvider: 'device' as TTSProvider,
+  customTTSUrl: '',
+  elevenLabsApiKey: '',
+  elevenLabsVoiceId: '',
 };
 
 // Platform features

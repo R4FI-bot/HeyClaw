@@ -168,7 +168,7 @@ class AudioService {
       
       this.audioRecorderPlayer.addPlayBackListener((e) => {
         if (e.currentPosition >= e.duration) {
-          this.onPlaybackComplete();
+          this.handlePlaybackComplete();
         }
       });
 
@@ -181,7 +181,7 @@ class AudioService {
     }
   }
 
-  private async onPlaybackComplete(): Promise<void> {
+  private async handlePlaybackComplete(): Promise<void> {
     await this.stopPlayback();
     this.notifyPlaybackHandlers();
     this.processQueue();

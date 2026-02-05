@@ -18,7 +18,9 @@ import {
   webSocketService, 
   wakeWordService, 
   audioService, 
-  backgroundService 
+  backgroundService,
+  sttService,
+  ttsService,
 } from '../services';
 import { COLORS, PLATFORM_FEATURES } from '../constants';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -50,6 +52,20 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
         }
 
+        // Configure STT service
+        sttService.configure({
+          useCustomSTT: settings.useCustomSTT,
+          customSTTUrl: settings.customSTTUrl,
+        });
+
+        // Configure TTS service
+        ttsService.configure({
+          provider: settings.ttsProvider,
+          customTTSUrl: settings.customTTSUrl,
+          elevenLabsApiKey: settings.elevenLabsApiKey,
+          elevenLabsVoiceId: settings.elevenLabsVoiceId,
+        });
+
         // Start background service on Android
         if (PLATFORM_FEATURES.supportsBackgroundWakeWord) {
           await backgroundService.start();
@@ -66,6 +82,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       webSocketService.disconnect();
       wakeWordService.cleanup();
       backgroundService.stop();
+      sttService.destroy();
     };
   }, []);
 
@@ -77,6 +94,23 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
     }
   }, [settings.gatewayUrl, settings.gatewayToken]);
+
+  // Reconfigure STT/TTS when settings change
+  useEffect(() => {
+    sttService.configure({
+      useCustomSTT: settings.useCustomSTT,
+      customSTTUrl: settings.customSTTUrl,
+    });
+  }, [settings.useCustomSTT, settings.customSTTUrl]);
+
+  useEffect(() => {
+    ttsService.configure({
+      provider: settings.ttsProvider,
+      customTTSUrl: settings.customTTSUrl,
+      elevenLabsApiKey: settings.elevenLabsApiKey,
+      elevenLabsVoiceId: settings.elevenLabsVoiceId,
+    });
+  }, [settings.ttsProvider, settings.customTTSUrl, settings.elevenLabsApiKey, settings.elevenLabsVoiceId]);
 
   // WebSocket status handler
   useEffect(() => {
@@ -120,12 +154,20 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           timestamp: payload.timestamp || Date.now(),
         });
 
-        // Auto-play TTS if enabled and we have media
-        if (settings.autoPlayResponses && payload.media) {
-          const audioMedia = payload.media.find(m => m.type.startsWith('audio'));
-          if (audioMedia && (audioMedia.url || audioMedia.base64)) {
-            audioService.queueAudio(audioMedia.url || audioMedia.base64!);
+        // Auto-play TTS if enabled
+        if (settings.autoPlayResponses) {
+          // Check if gateway sent audio
+          if (payload.media) {
+            const audioMedia = payload.media.find(m => m.type.startsWith('audio'));
+            if (audioMedia && (audioMedia.url || audioMedia.base64)) {
+              audioService.queueAudio(audioMedia.url || audioMedia.base64!);
+              return;
+            }
           }
+          // Otherwise, use our TTS service to speak the text
+          ttsService.speak(payload.text).catch(err => {
+            console.error('[Home] TTS failed:', err);
+          });
         }
       }
     });
@@ -171,14 +213,21 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     
     try {
       // TODO: Play activation sound
-      await audioService.startRecording();
+      
+      // For on-device STT, start listening directly (streaming recognition)
+      if (!settings.useCustomSTT) {
+        await sttService.startListening();
+      } else {
+        // For custom STT, record audio and send to endpoint
+        await audioService.startRecording();
+      }
     } catch (error) {
       console.error('Failed to start recording:', error);
       setListeningState('wake_word');
     }
-  }, [setListeningState]);
+  }, [setListeningState, settings.useCustomSTT]);
 
-  // Recording complete handler
+  // Recording complete handler (for custom STT mode)
   useEffect(() => {
     const unsubscribe = audioService.onRecordingComplete((audioBase64, durationMs) => {
       console.log('Recording complete:', durationMs, 'ms');
@@ -188,38 +237,64 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     return unsubscribe;
   }, []);
 
-  // Handle recording complete - transcribe and send
+  // On-device STT transcription handler
+  useEffect(() => {
+    const unsubscribe = sttService.onTranscription((text, isFinal) => {
+      console.log('[Home] STT result:', text, 'final:', isFinal);
+      
+      if (isFinal && text.trim()) {
+        handleTranscriptionComplete(text);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Handle recording complete - transcribe via custom STT endpoint
   const handleRecordingComplete = async (audioBase64: string, durationMs: number) => {
     setListeningState('processing');
     
     try {
-      // TODO: Use speech-to-text to transcribe audio
-      // For now, we'll need to implement STT integration
-      // Options: 
-      // 1. React Native Voice (uses native STT)
-      // 2. Whisper API via OpenClaw
-      // 3. On-device Whisper
+      // Use custom STT to transcribe audio
+      const transcribedText = await sttService.transcribeBase64(audioBase64);
       
-      // Placeholder - in real impl this would be transcribed text
-      const transcribedText = '[Voice transcription pending - implement STT]';
+      if (!transcribedText.trim()) {
+        console.log('[Home] Empty transcription, ignoring');
+        setListeningState('wake_word');
+        return;
+      }
       
+      // Process the transcription
+      await handleTranscriptionComplete(transcribedText);
+    } catch (error) {
+      console.error('Failed to process recording:', error);
+      setError('Failed to transcribe voice message');
+      setListeningState('wake_word');
+    }
+  };
+
+  // Handle completed transcription (from either on-device or custom STT)
+  const handleTranscriptionComplete = async (text: string) => {
+    setListeningState('processing');
+    
+    try {
       // Add user message to conversation
       addMessage({
         id: `msg-${Date.now()}`,
         type: 'user',
-        content: transcribedText,
+        content: text,
         timestamp: Date.now(),
       });
 
       // Send to OpenClaw via chat.send
       if (webSocketService.getIsConnected()) {
-        await webSocketService.sendChatMessage(transcribedText);
+        await webSocketService.sendChatMessage(text);
       } else {
         Alert.alert('Not Connected', 'Please check your gateway settings');
       }
     } catch (error) {
-      console.error('Failed to process recording:', error);
-      setError('Failed to process voice message');
+      console.error('Failed to send message:', error);
+      setError('Failed to send voice message');
     } finally {
       // Resume wake word listening
       setListeningState('wake_word');
@@ -241,20 +316,29 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     if (listeningState === 'recording') {
-      await audioService.stopRecording();
+      // Stop recording/listening
+      if (!settings.useCustomSTT) {
+        await sttService.stopListening();
+      } else {
+        await audioService.stopRecording();
+      }
     } else {
       // Start recording manually (simulates wake word)
       handleWakeWordDetected();
     }
-  }, [listeningState, handleWakeWordDetected, navigation]);
+  }, [listeningState, handleWakeWordDetected, navigation, settings.useCustomSTT]);
 
   // Long press - cancel recording
   const handleButtonLongPress = useCallback(async () => {
     if (listeningState === 'recording') {
-      await audioService.cancelRecording();
+      if (!settings.useCustomSTT) {
+        await sttService.cancel();
+      } else {
+        await audioService.cancelRecording();
+      }
       setListeningState('wake_word');
     }
-  }, [listeningState, setListeningState]);
+  }, [listeningState, setListeningState, settings.useCustomSTT]);
 
   // Play audio from conversation
   const handlePlayAudio = useCallback((audioUrl: string) => {

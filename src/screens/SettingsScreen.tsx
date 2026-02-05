@@ -18,13 +18,19 @@ import {
 } from 'react-native';
 import { useAppStore } from '../store';
 import { COLORS, AVAILABLE_WAKE_WORDS, PLATFORM_FEATURES } from '../constants';
-import type { WakeWordOption } from '../types';
+import type { WakeWordOption, TTSProvider } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 };
+
+const TTS_PROVIDERS: { label: string; value: TTSProvider; description: string }[] = [
+  { label: '📱 Device (Default)', value: 'device', description: 'On-device TTS, no API keys needed' },
+  { label: '🌐 Custom Endpoint', value: 'custom', description: 'Self-hosted Piper or XTTS' },
+  { label: '🎙️ ElevenLabs', value: 'elevenlabs', description: 'Cloud TTS, requires API key' },
+];
 
 export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const { settings, updateSettings, clearConversation } = useAppStore();
@@ -34,12 +40,29 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const [picovoiceKey, setPicovoiceKey] = useState(settings.picovoiceAccessKey || '');
   const [showToken, setShowToken] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // STT state
+  const [useCustomSTT, setUseCustomSTT] = useState(settings.useCustomSTT || false);
+  const [customSTTUrl, setCustomSTTUrl] = useState(settings.customSTTUrl || '');
+  
+  // TTS state
+  const [ttsProvider, setTtsProvider] = useState<TTSProvider>(settings.ttsProvider || 'device');
+  const [customTTSUrl, setCustomTTSUrl] = useState(settings.customTTSUrl || '');
+  const [elevenLabsApiKey, setElevenLabsApiKey] = useState(settings.elevenLabsApiKey || '');
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState(settings.elevenLabsVoiceId || '');
+  const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
 
   const handleSave = () => {
     updateSettings({
       gatewayUrl,
       gatewayToken,
       picovoiceAccessKey: picovoiceKey,
+      useCustomSTT,
+      customSTTUrl,
+      ttsProvider,
+      customTTSUrl,
+      elevenLabsApiKey,
+      elevenLabsVoiceId,
     });
     Alert.alert('Saved', 'Settings have been saved');
   };
@@ -154,6 +177,155 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
               💡 All wake words work offline using Porcupine - no cloud required!
             </Text>
           </View>
+        </View>
+
+        {/* Speech-to-Text */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🎤 Speech-to-Text</Text>
+          <Text style={styles.sectionDescription}>
+            How your voice is transcribed to text
+          </Text>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingLabel}>Use custom STT endpoint</Text>
+              <Text style={styles.settingDescription}>
+                Self-hosted Whisper or compatible API
+              </Text>
+            </View>
+            <Switch
+              value={useCustomSTT}
+              onValueChange={setUseCustomSTT}
+              trackColor={{ false: COLORS.surfaceLight, true: COLORS.primary }}
+              thumbColor={COLORS.text}
+            />
+          </View>
+
+          {useCustomSTT && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Custom STT URL</Text>
+              <TextInput
+                style={styles.input}
+                value={customSTTUrl}
+                onChangeText={setCustomSTTUrl}
+                placeholder="https://your-whisper-server/transcribe"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+              <Text style={styles.hint}>
+                Whisper API endpoint. Expects POST with audio file, returns {`{ text: "..." }`}
+              </Text>
+            </View>
+          )}
+
+          {!useCustomSTT && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                💡 Using on-device speech recognition (Google/Apple). Works offline, no API keys needed!
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Text-to-Speech */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔊 Text-to-Speech</Text>
+          <Text style={styles.sectionDescription}>
+            How responses are spoken back to you
+          </Text>
+
+          <View style={styles.ttsProviderGrid}>
+            {TTS_PROVIDERS.map((provider) => (
+              <TouchableOpacity
+                key={provider.value}
+                style={[
+                  styles.ttsProviderButton,
+                  ttsProvider === provider.value && styles.ttsProviderButtonActive,
+                ]}
+                onPress={() => setTtsProvider(provider.value)}
+              >
+                <Text
+                  style={[
+                    styles.ttsProviderLabel,
+                    ttsProvider === provider.value && styles.ttsProviderLabelActive,
+                  ]}
+                >
+                  {provider.label}
+                </Text>
+                <Text style={styles.ttsProviderDesc}>{provider.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {ttsProvider === 'custom' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Custom TTS URL</Text>
+              <TextInput
+                style={styles.input}
+                value={customTTSUrl}
+                onChangeText={setCustomTTSUrl}
+                placeholder="https://your-tts-server/synthesize"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+              />
+              <Text style={styles.hint}>
+                Piper/XTTS endpoint. POST with {`{ text: "..." }`}, returns audio/wav
+              </Text>
+            </View>
+          )}
+
+          {ttsProvider === 'elevenlabs' && (
+            <>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>ElevenLabs API Key</Text>
+                <View style={styles.tokenContainer}>
+                  <TextInput
+                    style={[styles.input, styles.tokenInput]}
+                    value={elevenLabsApiKey}
+                    onChangeText={setElevenLabsApiKey}
+                    placeholder="Your ElevenLabs API key"
+                    placeholderTextColor={COLORS.textSecondary}
+                    secureTextEntry={!showElevenLabsKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.toggleButton}
+                    onPress={() => setShowElevenLabsKey(!showElevenLabsKey)}
+                  >
+                    <Text style={styles.toggleText}>{showElevenLabsKey ? '🙈' : '👁️'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Voice ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={elevenLabsVoiceId}
+                  onChangeText={setElevenLabsVoiceId}
+                  placeholder="e.g., 21m00Tcm4TlvDq8ikWAM"
+                  placeholderTextColor={COLORS.textSecondary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.hint}>
+                  Find voice IDs at elevenlabs.io/voice-library
+                </Text>
+              </View>
+            </>
+          )}
+
+          {ttsProvider === 'device' && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                💡 Using native device TTS. Works offline, supports multiple languages!
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Behavior */}
@@ -371,6 +543,34 @@ const styles = StyleSheet.create({
   },
   wakeWordTextActive: {
     color: COLORS.text,
+  },
+  ttsProviderGrid: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  ttsProviderButton: {
+    backgroundColor: COLORS.surface,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  ttsProviderButtonActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.surfaceLight,
+  },
+  ttsProviderLabel: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  ttsProviderLabelActive: {
+    color: COLORS.text,
+  },
+  ttsProviderDesc: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
   },
   infoBox: {
     backgroundColor: COLORS.surface,

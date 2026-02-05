@@ -96,6 +96,9 @@ export interface OutgoingMessage {
   timestamp: number;
 }
 
+// TTS Provider options
+export type TTSProvider = 'device' | 'custom' | 'elevenlabs';
+
 // App settings
 export interface AppSettings {
   gatewayUrl: string;
@@ -107,6 +110,14 @@ export interface AppSettings {
   voiceActivationSensitivity: number; // 0.0 - 1.0
   // Advanced settings
   picovoiceAccessKey: string;
+  // STT settings
+  useCustomSTT: boolean;
+  customSTTUrl: string;
+  // TTS settings
+  ttsProvider: TTSProvider;
+  customTTSUrl: string;
+  elevenLabsApiKey: string;
+  elevenLabsVoiceId: string;
 }
 
 // Wake word options (Porcupine built-in keywords)

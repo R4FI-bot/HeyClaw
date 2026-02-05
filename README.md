@@ -93,10 +93,116 @@ Built-in wake words (no API key needed):
 
 All wake words work **100% offline** using [Picovoice Porcupine](https://picovoice.ai/).
 
+## Audio Providers
+
+HeyClaw supports multiple Speech-to-Text and Text-to-Speech providers.
+
+### Speech-to-Text (STT)
+
+| Provider | Setup | Pros | Cons |
+|----------|-------|------|------|
+| **Device** (default) | None! | Works offline, no API keys | Quality varies by device |
+| **Custom Whisper** | Self-host | Best accuracy, full control | Requires server |
+
+### Text-to-Speech (TTS)
+
+| Provider | Setup | Pros | Cons |
+|----------|-------|------|------|
+| **Device** (default) | None! | Works offline, multi-language | Basic voices |
+| **Custom Piper/XTTS** | Self-host | Fast, good quality, free | Requires server |
+| **ElevenLabs** | API key | Excellent quality | Paid service |
+
+### Self-Hosting Setup
+
+Want better speech quality? Host your own servers!
+
+#### Whisper (STT)
+
+Fast GPU-accelerated speech recognition:
+
+```bash
+# Using faster-whisper (recommended)
+pip install faster-whisper
+
+# Or use whisper-api-server
+docker run -d -p 8000:8000 \
+  -e MODEL=base \
+  ghcr.io/innovatie/whisper-api-server
+
+# Or OpenAI Whisper compatible endpoint
+# HeyClaw expects: POST /transcribe with audio file
+# Response: { "text": "transcribed text" }
+```
+
+In HeyClaw Settings:
+- Enable "Use custom STT endpoint"
+- Enter URL: `https://your-server:8000/transcribe`
+
+#### Piper (TTS)
+
+Lightweight, fast, great voices:
+
+```bash
+# Docker
+docker run -d -p 5000:5000 \
+  rhasspy/piper-http-server \
+  --voice en_US-lessac-medium
+
+# For German, try "thorsten" voice:
+docker run -d -p 5000:5000 \
+  rhasspy/piper-http-server \
+  --voice de_DE-thorsten-medium
+
+# API: POST /synthesize with { "text": "..." }
+# Returns: audio/wav
+```
+
+In HeyClaw Settings:
+- Select "Custom Endpoint" for TTS
+- Enter URL: `https://your-server:5000/synthesize`
+
+#### XTTS v2 (TTS)
+
+Best quality, multilingual, voice cloning:
+
+```bash
+# Requires GPU (CUDA)
+pip install TTS
+
+# Run server
+tts-server --model_name tts_models/multilingual/multi-dataset/xtts_v2
+
+# Or via Docker with GPU:
+docker run -d --gpus all -p 5002:5002 \
+  coqui/tts-server \
+  --model_name tts_models/multilingual/multi-dataset/xtts_v2
+
+# API: POST /api/tts with { "text": "...", "language": "en" }
+# Returns: audio/wav
+```
+
+In HeyClaw Settings:
+- Select "Custom Endpoint" for TTS
+- Enter URL: `https://your-server:5002/api/tts`
+
+#### ElevenLabs (TTS)
+
+High-quality cloud TTS (paid):
+
+1. Sign up at [elevenlabs.io](https://elevenlabs.io)
+2. Get API key from profile settings
+3. Choose a voice from the Voice Library
+4. In HeyClaw Settings:
+   - Select "ElevenLabs" for TTS
+   - Enter API Key
+   - Enter Voice ID
+
 ## Tech Stack
 
 - **React Native** – Cross-platform mobile
 - **Porcupine SDK** – Offline wake word detection
+- **react-native-voice** – On-device speech recognition
+- **react-native-tts** – On-device text-to-speech
 - **WebSocket** – Real-time OpenClaw Gateway protocol
 - **Zustand** – State management
 
