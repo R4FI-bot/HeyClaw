@@ -19,7 +19,7 @@ export const useAppStore = create<AppState>()(
       listeningState: 'idle' as ListeningState,
       setListeningState: (listeningState) => set({ listeningState }),
 
-      // Settings (with migration for picovoiceAccessKey)
+      // Settings
       settings: DEFAULT_SETTINGS,
       updateSettings: (newSettings) =>
         set((state) => ({
