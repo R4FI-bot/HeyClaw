@@ -2,12 +2,6 @@
 
 Voice companion app for hands-free AI assistant interaction with [OpenClaw](https://github.com/openclaw/openclaw).
 
-**Say "Computer" and start talking** – Star Trek style!
-
-## 🎉 Fully Open Source & Offline
-
-**No API keys required!** HeyClaw uses [Vosk](https://alphacephei.com/vosk/) for both wake word detection and speech-to-text. Everything runs locally on your device.
-
 ## Features
 
 ### Core
@@ -41,7 +35,7 @@ Voice companion app for hands-free AI assistant interaction with [OpenClaw](http
 
 ### 2. Voice Models
 
-HeyClaw downloads voice models directly in the app - no manual setup needed! On first launch, you'll be guided to download a model. 
+On first launch, you'll be guided to download a model. 
 
 **Recommended:** German (Small) - 45MB, fast and accurate for wake word detection.
 
@@ -153,19 +147,6 @@ HeyClaw supports multiple Speech-to-Text and Text-to-Speech providers.
 | **Device** (default) | None! | Works offline, multi-language | Basic voices |
 | **Custom Piper/XTTS** | Self-host | Fast, good quality, free | Requires server |
 | **ElevenLabs** | API key | Excellent quality | Paid service |
-
-### Vosk Models
-
-For best results, use a model matching your language:
-
-| Model | Size | Language | Link |
-|-------|------|----------|------|
-| vosk-model-small-en-us-0.15 | 40MB | English (US) | [Download](https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip) |
-| vosk-model-small-de-0.15 | 45MB | German | [Download](https://alphacephei.com/vosk/models/vosk-model-small-de-0.15.zip) |
-| vosk-model-en-us-0.22 | 1.8GB | English (high accuracy) | [Download](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip) |
-| vosk-model-de-0.21 | 1.9GB | German (high accuracy) | [Download](https://alphacephei.com/vosk/models/vosk-model-de-0.21.zip) |
-
-Small models are recommended for mobile devices.
 
 ### Self-Hosting TTS
 
