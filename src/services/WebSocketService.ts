@@ -13,10 +13,18 @@ import type {
   OpenClawRequest,
   OpenClawResponse,
   OpenClawEvent,
-  ConnectParams,
-  ChatSendParams,
   ChatEventPayload,
 } from '../types';
+
+// WebSocket event types (React Native compatible)
+interface WSMessageEvent {
+  data: string;
+}
+
+interface WSCloseEvent {
+  code: number;
+  reason: string;
+}
 
 type ChatHandler = (payload: ChatEventPayload) => void;
 type StatusHandler = (connected: boolean) => void;
@@ -117,7 +125,7 @@ class WebSocketService {
    * Send connect request with auth
    */
   private async sendConnectRequest(): Promise<void> {
-    const params: ConnectParams = {
+    const params = {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       auth: {
@@ -163,7 +171,7 @@ class WebSocketService {
     });
   }
 
-  private handleMessage(event: MessageEvent): void {
+  private handleMessage(event: WSMessageEvent): void {
     try {
       const message: OpenClawMessage = JSON.parse(event.data);
       console.log('[WebSocket] Received:', message.type, 
@@ -217,7 +225,7 @@ class WebSocketService {
     }
   }
 
-  private handleClose(event: CloseEvent): void {
+  private handleClose(event: WSCloseEvent): void {
     console.log('[WebSocket] Disconnected:', event.code, event.reason);
     this.isConnected = false;
     this.cleanup();
@@ -295,7 +303,7 @@ class WebSocketService {
       throw new Error('Not connected to gateway');
     }
 
-    const params: ChatSendParams = {
+    const params = {
       sessionKey: 'main',
       message,
       idempotencyKey: this.nextId(),
