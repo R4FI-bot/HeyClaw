@@ -15,10 +15,9 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
-  Linking,
 } from 'react-native';
 import { useAppStore } from '../store';
-import { COLORS, SUGGESTED_WAKE_WORDS, PLATFORM_FEATURES, STT_PROVIDERS, VOSK_MODELS } from '../constants';
+import { COLORS, SUGGESTED_WAKE_WORDS, PLATFORM_FEATURES, STT_PROVIDERS } from '../constants';
 import type { TTSProvider, STTProvider } from '../types';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
@@ -47,7 +46,6 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   // STT state
   const [sttProvider, setSttProvider] = useState<STTProvider>(settings.sttProvider || 'vosk');
   const [customSTTUrl, setCustomSTTUrl] = useState(settings.customSTTUrl || '');
-  const [voskModelPath, setVoskModelPath] = useState(settings.voskModelPath || '');
   
   // TTS state
   const [ttsProvider, setTtsProvider] = useState<TTSProvider>(settings.ttsProvider || 'device');
@@ -63,7 +61,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       wakeWord: customWakeWord.toLowerCase().trim(),
       sttProvider,
       customSTTUrl,
-      voskModelPath,
+      // voskModelPath is managed by ModelManagerScreen
       ttsProvider,
       customTTSUrl,
       elevenLabsApiKey,
@@ -90,10 +88,6 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         },
       ]
     );
-  };
-
-  const openVoskModels = () => {
-    Linking.openURL('https://alphacephei.com/vosk/models');
   };
 
   return (
@@ -238,28 +232,39 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
           {sttProvider === 'vosk' && (
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Vosk Model Path</Text>
-              <TextInput
-                style={styles.input}
-                value={voskModelPath}
-                onChangeText={setVoskModelPath}
-                placeholder="/path/to/vosk-model"
-                placeholderTextColor={COLORS.textSecondary}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={styles.hint}>
-                Download model from alphacephei.com/vosk/models
-              </Text>
-              <TouchableOpacity style={styles.linkButton} onPress={openVoskModels}>
-                <Text style={styles.linkButtonText}>📥 Download Vosk Models</Text>
+              <Text style={styles.label}>Voice Model</Text>
+              
+              {settings.voskModelPath ? (
+                <View style={styles.activeModelCard}>
+                  <View style={styles.activeModelInfo}>
+                    <Text style={styles.activeModelLabel}>Active Model:</Text>
+                    <Text style={styles.activeModelName}>
+                      {settings.voskModelPath.split('/').pop() || 'Unknown'}
+                    </Text>
+                  </View>
+                  <Text style={styles.activeModelStatus}>✓ Ready</Text>
+                </View>
+              ) : (
+                <View style={styles.noModelCard}>
+                  <Text style={styles.noModelEmoji}>📥</Text>
+                  <Text style={styles.noModelText}>
+                    No model installed. Download one to enable wake word detection.
+                  </Text>
+                </View>
+              )}
+              
+              <TouchableOpacity 
+                style={styles.modelManagerButton} 
+                onPress={() => navigation.navigate('ModelManager')}
+              >
+                <Text style={styles.modelManagerButtonText}>
+                  🎤 {settings.voskModelPath ? 'Manage Voice Models' : 'Download Voice Model'}
+                </Text>
               </TouchableOpacity>
               
-              <View style={styles.modelInfo}>
-                <Text style={styles.modelInfoTitle}>Recommended Models:</Text>
-                <Text style={styles.modelInfoItem}>🇺🇸 English: vosk-model-small-en-us-0.15 (40MB)</Text>
-                <Text style={styles.modelInfoItem}>🇩🇪 German: vosk-model-small-de-0.15 (45MB)</Text>
-              </View>
+              <Text style={styles.hint}>
+                Download and manage speech recognition models directly in the app
+              </Text>
             </View>
           )}
 
@@ -599,6 +604,63 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 13,
     marginBottom: 4,
+  },
+  activeModelCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.success + '40',
+  },
+  activeModelInfo: {
+    flex: 1,
+  },
+  activeModelLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 2,
+  },
+  activeModelName: {
+    fontSize: 14,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  activeModelStatus: {
+    fontSize: 13,
+    color: COLORS.success,
+    fontWeight: '600',
+  },
+  noModelCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.warning + '40',
+  },
+  noModelEmoji: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  noModelText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  modelManagerButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  modelManagerButtonText: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: '600',
   },
   wakeWordGrid: {
     flexDirection: 'row',

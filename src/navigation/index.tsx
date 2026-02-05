@@ -5,12 +5,13 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HomeScreen, SettingsScreen } from '../screens';
+import { HomeScreen, SettingsScreen, ModelManagerScreen } from '../screens';
 import { COLORS } from '../constants';
 
 export type RootStackParamList = {
   Home: undefined;
   Settings: undefined;
+  ModelManager: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -43,6 +44,14 @@ export const Navigation: React.FC = () => {
           component={SettingsScreen}
           options={{ 
             title: 'Settings',
+            headerBackTitle: 'Back',
+          }}
+        />
+        <Stack.Screen
+          name="ModelManager"
+          component={ModelManagerScreen}
+          options={{ 
+            title: 'Voice Models',
             headerBackTitle: 'Back',
           }}
         />

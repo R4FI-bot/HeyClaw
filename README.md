@@ -39,25 +39,13 @@ Voice companion app for hands-free AI assistant interaction with [OpenClaw](http
 - Xcode (for iOS, macOS only)
 - Running OpenClaw gateway
 
-### 2. Download a Vosk Model
+### 2. Voice Models
 
-HeyClaw needs a Vosk model for speech recognition. Download one:
+HeyClaw downloads voice models directly in the app - no manual setup needed! On first launch, you'll be guided to download a model. 
 
-**English:**
-```bash
-# Small model (~40MB) - recommended for mobile
-wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
-unzip vosk-model-small-en-us-0.15.zip
-```
+**Recommended:** German (Small) - 45MB, fast and accurate for wake word detection.
 
-**German:**
-```bash
-# Small German model (~45MB)
-wget https://alphacephei.com/vosk/models/vosk-model-small-de-0.15.zip
-unzip vosk-model-small-de-0.15.zip
-```
-
-More models: [alphacephei.com/vosk/models](https://alphacephei.com/vosk/models)
+Models can be managed in **Settings → Manage Voice Models**.
 
 ### 3. Get Your Gateway Info
 
@@ -90,7 +78,7 @@ npm run android  # or npm run ios
 1. Open HeyClaw settings (⚙️ icon)
 2. Enter **Gateway Address**: `192.168.1.100:18789` (without `ws://`)
 3. Enter **Gateway Token**: The token from your Control UI URL
-4. Set **Vosk Model Path**: Path to your downloaded model folder
+4. **Download a Voice Model** – Tap "Download Voice Model" to get started
 5. Choose your **Wake Word** (default: "Computer" - or type your own!)
 6. Save!
 
@@ -117,6 +105,34 @@ npm run android  # or npm run ios
 | ✨ *Your name* | Custom! |
 
 Just type any word in settings - Vosk handles it offline!
+
+## In-App Model Download
+
+HeyClaw includes a built-in **Model Manager** for downloading and managing Vosk models:
+
+- 📥 **Download models** directly in the app
+- 📊 **Progress tracking** with download percentage
+- 🗑️ **Delete models** you don't need
+- 💾 **Storage info** shows available space
+- 🔄 **Switch models** between languages easily
+
+### Available Models
+
+| Model | Language | Size | Notes |
+|-------|----------|------|-------|
+| vosk-model-small-de-0.15 | 🇩🇪 German | 45 MB | ⭐ Recommended |
+| vosk-model-small-en-us-0.15 | 🇺🇸 English | 40 MB | |
+| vosk-model-small-es-0.42 | 🇪🇸 Spanish | 39 MB | |
+| vosk-model-small-fr-0.22 | 🇫🇷 French | 41 MB | |
+| vosk-model-small-it-0.22 | 🇮🇹 Italian | 48 MB | |
+| vosk-model-small-ru-0.22 | 🇷🇺 Russian | 45 MB | |
+| vosk-model-small-pt-0.3 | 🇧🇷 Portuguese | 31 MB | |
+| vosk-model-small-cn-0.22 | 🇨🇳 Chinese | 42 MB | |
+| vosk-model-small-ja-0.22 | 🇯🇵 Japanese | 48 MB | |
+| vosk-model-de-0.21 | 🇩🇪 German (Large) | 1.9 GB | Higher accuracy |
+| vosk-model-en-us-0.22 | 🇺🇸 English (Large) | 1.8 GB | Higher accuracy |
+
+Small models are recommended for wake word detection - they're fast and accurate enough for trigger words.
 
 ## Audio Providers
 
@@ -248,10 +264,11 @@ npm test
 
 ## Troubleshooting
 
-### "Vosk model not found"
-- Make sure you've downloaded a Vosk model
-- Check the model path in settings points to the unzipped folder
-- The folder should contain files like `am/`, `conf/`, `graph/`
+### "No model installed" / Wake word not working
+- Open Settings → Manage Voice Models
+- Download a model (German Small recommended)
+- Wait for download and extraction to complete
+- Model should show as "Active" after download
 
 ### "Not connected to gateway"
 - Check Gateway Address and Token in settings
