@@ -8,10 +8,82 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'err
 // Listening states for the app
 export type ListeningState = 'idle' | 'wake_word' | 'recording' | 'processing';
 
+// ============================================================================
+// OpenClaw Protocol Types
+// ============================================================================
+
+// Base request/response types
+export interface OpenClawRequest {
+  type: 'req';
+  id: string;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface OpenClawResponse {
+  type: 'res';
+  id: string;
+  result?: Record<string, unknown>;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+}
+
+export interface OpenClawEvent {
+  type: 'event';
+  event: string;
+  payload: Record<string, unknown>;
+}
+
+export type OpenClawMessage = OpenClawRequest | OpenClawResponse | OpenClawEvent;
+
+// Connect request params
+export interface ConnectParams {
+  minProtocol: number;
+  maxProtocol: number;
+  auth: {
+    token: string;
+  };
+  client: {
+    id: string;
+    displayName: string;
+    version: string;
+    platform: string;
+    mode: string;
+  };
+}
+
+// Chat send params
+export interface ChatSendParams {
+  sessionKey: string;
+  message: string;
+  idempotencyKey: string;
+}
+
+// Chat event payload
+export interface ChatEventPayload {
+  text?: string;
+  sessionKey?: string;
+  role?: 'user' | 'assistant';
+  timestamp?: number;
+  media?: Array<{
+    type: string;
+    url?: string;
+    base64?: string;
+  }>;
+}
+
+// ============================================================================
+// Legacy types (for internal use)
+// ============================================================================
+
 // Message types from/to OpenClaw Gateway
 export interface GatewayMessage {
-  type: 'text' | 'audio' | 'status' | 'error';
+  type: 'text' | 'audio' | 'status' | 'error' | 'chat';
   content?: string;
+  text?: string;
   audioUrl?: string;
   audioBase64?: string;
   timestamp: number;
@@ -33,6 +105,8 @@ export interface AppSettings {
   keepScreenOn: boolean;
   hapticFeedback: boolean;
   voiceActivationSensitivity: number; // 0.0 - 1.0
+  // Advanced settings
+  picovoiceAccessKey: string;
 }
 
 // Wake word options (Porcupine built-in keywords)

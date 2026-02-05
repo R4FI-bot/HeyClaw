@@ -7,13 +7,14 @@ import type { AppSettings, PlatformFeatures, WakeWordOption } from '../types';
 
 // Default settings
 export const DEFAULT_SETTINGS: AppSettings = {
-  gatewayUrl: 'ws://localhost:18789',
+  gatewayUrl: '',
   gatewayToken: '',
-  wakeWord: 'porcupine' as WakeWordOption,
+  wakeWord: 'computer' as WakeWordOption, // Star Trek style!
   autoPlayResponses: true,
   keepScreenOn: false,
   hapticFeedback: true,
   voiceActivationSensitivity: 0.5,
+  picovoiceAccessKey: '', // Optional - for custom wake words
 };
 
 // Platform features
@@ -23,22 +24,23 @@ export const PLATFORM_FEATURES: PlatformFeatures = {
   supportsAutoStart: Platform.OS === 'android',
 };
 
-// Available wake words (Porcupine built-in)
+// Available wake words (Porcupine built-in - no API key needed!)
 export const AVAILABLE_WAKE_WORDS: { label: string; value: WakeWordOption }[] = [
-  { label: 'Porcupine', value: 'porcupine' },
-  { label: 'Bumblebee', value: 'bumblebee' },
-  { label: 'Jarvis', value: 'jarvis' },
-  { label: 'Computer', value: 'computer' },
-  { label: 'Picovoice', value: 'picovoice' },
-  { label: 'Alexa', value: 'alexa' },
-  { label: 'Hey Google', value: 'hey google' },
-  { label: 'Hey Siri', value: 'hey siri' },
-  { label: 'OK Google', value: 'ok google' },
-  { label: 'Terminator', value: 'terminator' },
-  { label: 'Americano', value: 'americano' },
-  { label: 'Blueberry', value: 'blueberry' },
-  { label: 'Grapefruit', value: 'grapefruit' },
-  { label: 'Grasshopper', value: 'grasshopper' },
+  { label: '🖖 Computer', value: 'computer' },   // Default - Star Trek
+  { label: '🤖 Jarvis', value: 'jarvis' },       // Iron Man
+  { label: '🐝 Bumblebee', value: 'bumblebee' },
+  { label: '🦔 Porcupine', value: 'porcupine' },
+  { label: '🎤 Picovoice', value: 'picovoice' },
+  { label: '🔴 Terminator', value: 'terminator' },
+  { label: '☕ Americano', value: 'americano' },
+  { label: '🫐 Blueberry', value: 'blueberry' },
+  { label: '🍊 Grapefruit', value: 'grapefruit' },
+  { label: '🦗 Grasshopper', value: 'grasshopper' },
+  // These require Picovoice API key (commercial terms):
+  // { label: 'Alexa', value: 'alexa' },
+  // { label: 'Hey Google', value: 'hey google' },
+  // { label: 'Hey Siri', value: 'hey siri' },
+  // { label: 'OK Google', value: 'ok google' },
 ];
 
 // Audio settings

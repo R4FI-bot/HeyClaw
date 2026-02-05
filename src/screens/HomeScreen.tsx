@@ -10,7 +10,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Text,
-  Platform,
+  Alert,
 } from 'react-native';
 import { StatusIndicator, ListeningButton, ConversationList } from '../components';
 import { useAppStore } from '../store';
@@ -23,6 +23,7 @@ import {
 import { COLORS, PLATFORM_FEATURES } from '../constants';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation';
+import type { ChatEventPayload } from '../types';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -31,17 +32,19 @@ type Props = {
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { 
     settings,
+    connectionState,
     setConnectionState,
     setListeningState,
     addMessage,
     listeningState,
+    setError,
   } = useAppStore();
 
   // Initialize services on mount
   useEffect(() => {
     const initializeServices = async () => {
       try {
-        // Connect WebSocket
+        // Connect WebSocket if we have settings
         if (settings.gatewayUrl && settings.gatewayToken) {
           setConnectionState('connecting');
           webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
@@ -66,36 +69,63 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     };
   }, []);
 
+  // Reconnect when settings change
+  useEffect(() => {
+    if (settings.gatewayUrl && settings.gatewayToken) {
+      webSocketService.disconnect();
+      setConnectionState('connecting');
+      webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
+    }
+  }, [settings.gatewayUrl, settings.gatewayToken]);
+
   // WebSocket status handler
   useEffect(() => {
     const unsubscribe = webSocketService.onStatus((connected) => {
       setConnectionState(connected ? 'connected' : 'disconnected');
       
       // Start wake word detection when connected
-      if (connected && settings.gatewayToken) {
+      if (connected) {
         startWakeWordDetection();
       }
     });
 
     return unsubscribe;
-  }, [settings.gatewayToken]);
+  }, [settings.wakeWord]);
 
-  // WebSocket message handler
+  // WebSocket error handler
   useEffect(() => {
-    const unsubscribe = webSocketService.onMessage((message) => {
-      if (message.type === 'audio' || message.type === 'text') {
-        // Add to conversation
+    const unsubscribe = webSocketService.onError((error) => {
+      console.error('[Home] WebSocket error:', error);
+      setError(error);
+      // Show alert for connection errors
+      if (error.includes('Authentication') || error.includes('connect')) {
+        Alert.alert('Connection Error', error);
+      }
+    });
+
+    return unsubscribe;
+  }, [setError]);
+
+  // WebSocket chat handler (responses from assistant)
+  useEffect(() => {
+    const unsubscribe = webSocketService.onChat((payload: ChatEventPayload) => {
+      console.log('[Home] Chat received:', payload);
+      
+      if (payload.text && payload.role === 'assistant') {
+        // Add assistant response to conversation
         addMessage({
           id: `msg-${Date.now()}`,
           type: 'assistant',
-          content: message.content || '[Audio message]',
-          audioUrl: message.audioUrl || message.audioBase64,
-          timestamp: message.timestamp,
+          content: payload.text,
+          timestamp: payload.timestamp || Date.now(),
         });
 
-        // Auto-play if enabled
-        if (settings.autoPlayResponses && (message.audioUrl || message.audioBase64)) {
-          audioService.queueAudio(message.audioUrl || message.audioBase64!);
+        // Auto-play TTS if enabled and we have media
+        if (settings.autoPlayResponses && payload.media) {
+          const audioMedia = payload.media.find(m => m.type.startsWith('audio'));
+          if (audioMedia && (audioMedia.url || audioMedia.base64)) {
+            audioService.queueAudio(audioMedia.url || audioMedia.base64!);
+          }
         }
       }
     });
@@ -106,12 +136,22 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // Start wake word detection
   const startWakeWordDetection = async () => {
     try {
-      // TODO: Need Picovoice access key in settings
-      // await wakeWordService.initialize(settings.picovoiceAccessKey, settings.wakeWord);
-      // await wakeWordService.startListening();
+      // Use Picovoice access key if provided, otherwise built-in works for basic keywords
+      const accessKey = settings.picovoiceAccessKey || '';
+      
+      if (!accessKey) {
+        // For now, just set state - wake word requires key
+        console.log('[Home] No Picovoice key - wake word disabled');
+        setListeningState('idle');
+        return;
+      }
+
+      await wakeWordService.initialize(accessKey, settings.wakeWord);
+      await wakeWordService.startListening();
       setListeningState('wake_word');
     } catch (error) {
       console.error('Failed to start wake word detection:', error);
+      setListeningState('idle');
     }
   };
 
@@ -130,6 +170,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     setListeningState('recording');
     
     try {
+      // TODO: Play activation sound
       await audioService.startRecording();
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -141,36 +182,71 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     const unsubscribe = audioService.onRecordingComplete((audioBase64, durationMs) => {
       console.log('Recording complete:', durationMs, 'ms');
+      handleRecordingComplete(audioBase64, durationMs);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Handle recording complete - transcribe and send
+  const handleRecordingComplete = async (audioBase64: string, durationMs: number) => {
+    setListeningState('processing');
+    
+    try {
+      // TODO: Use speech-to-text to transcribe audio
+      // For now, we'll need to implement STT integration
+      // Options: 
+      // 1. React Native Voice (uses native STT)
+      // 2. Whisper API via OpenClaw
+      // 3. On-device Whisper
+      
+      // Placeholder - in real impl this would be transcribed text
+      const transcribedText = '[Voice transcription pending - implement STT]';
       
       // Add user message to conversation
       addMessage({
         id: `msg-${Date.now()}`,
         type: 'user',
-        content: '[Voice message]',
+        content: transcribedText,
         timestamp: Date.now(),
       });
 
-      // Send to gateway
-      setListeningState('processing');
-      webSocketService.sendAudio(audioBase64);
+      // Send to OpenClaw via chat.send
+      if (webSocketService.getIsConnected()) {
+        await webSocketService.sendChatMessage(transcribedText);
+      } else {
+        Alert.alert('Not Connected', 'Please check your gateway settings');
+      }
+    } catch (error) {
+      console.error('Failed to process recording:', error);
+      setError('Failed to process voice message');
+    } finally {
+      // Resume wake word listening
+      setListeningState('wake_word');
+    }
+  };
 
-      // Resume wake word listening after processing
-      setTimeout(() => {
-        setListeningState('wake_word');
-      }, 1000);
-    });
-
-    return unsubscribe;
-  }, [addMessage, setListeningState]);
-
-  // Manual button press - toggle recording
+  // Manual button press - toggle recording or send test message
   const handleButtonPress = useCallback(async () => {
+    if (!webSocketService.getIsConnected()) {
+      Alert.alert(
+        'Not Connected',
+        'Please configure your gateway connection in Settings',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Settings', onPress: () => navigation.navigate('Settings') },
+        ]
+      );
+      return;
+    }
+
     if (listeningState === 'recording') {
       await audioService.stopRecording();
-    } else if (listeningState === 'wake_word' || listeningState === 'idle') {
+    } else {
+      // Start recording manually (simulates wake word)
       handleWakeWordDetected();
     }
-  }, [listeningState, handleWakeWordDetected]);
+  }, [listeningState, handleWakeWordDetected, navigation]);
 
   // Long press - cancel recording
   const handleButtonLongPress = useCallback(async () => {
@@ -184,6 +260,23 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const handlePlayAudio = useCallback((audioUrl: string) => {
     audioService.playAudio(audioUrl);
   }, []);
+
+  // Get status text
+  const getStatusText = (): string => {
+    if (connectionState === 'disconnected') {
+      return 'Tap ⚙️ to configure';
+    }
+    if (connectionState === 'connecting') {
+      return 'Connecting...';
+    }
+    if (listeningState === 'recording') {
+      return 'Listening... tap to stop';
+    }
+    if (listeningState === 'processing') {
+      return 'Processing...';
+    }
+    return `Say "${settings.wakeWord}" or tap`;
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -200,6 +293,9 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
       {/* Status */}
       <StatusIndicator />
+      
+      {/* Hint text */}
+      <Text style={styles.hintText}>{getStatusText()}</Text>
 
       {/* Conversation */}
       <View style={styles.conversationContainer}>
@@ -239,6 +335,13 @@ const styles = StyleSheet.create({
   },
   settingsIcon: {
     fontSize: 24,
+  },
+  hintText: {
+    textAlign: 'center',
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    paddingHorizontal: 16,
+    marginTop: 8,
   },
   conversationContainer: {
     flex: 1,

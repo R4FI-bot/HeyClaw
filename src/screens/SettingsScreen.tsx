@@ -31,12 +31,15 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   
   const [gatewayUrl, setGatewayUrl] = useState(settings.gatewayUrl);
   const [gatewayToken, setGatewayToken] = useState(settings.gatewayToken);
+  const [picovoiceKey, setPicovoiceKey] = useState(settings.picovoiceAccessKey || '');
   const [showToken, setShowToken] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleSave = () => {
     updateSettings({
       gatewayUrl,
       gatewayToken,
+      picovoiceAccessKey: picovoiceKey,
     });
     Alert.alert('Saved', 'Settings have been saved');
   };
@@ -65,29 +68,36 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Gateway Connection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Gateway Connection</Text>
+          <Text style={styles.sectionTitle}>🔌 Gateway Connection</Text>
+          <Text style={styles.sectionDescription}>
+            Connect to your OpenClaw gateway
+          </Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Gateway URL</Text>
+            <Text style={styles.label}>Gateway Address</Text>
             <TextInput
               style={styles.input}
               value={gatewayUrl}
               onChangeText={setGatewayUrl}
-              placeholder="ws://localhost:18789"
+              placeholder="192.168.1.100:18789"
               placeholderTextColor={COLORS.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
+              keyboardType="url"
             />
+            <Text style={styles.hint}>
+              Your OpenClaw gateway IP and port (find in Control UI)
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Access Token</Text>
+            <Text style={styles.label}>Gateway Token</Text>
             <View style={styles.tokenContainer}>
               <TextInput
                 style={[styles.input, styles.tokenInput]}
                 value={gatewayToken}
                 onChangeText={setGatewayToken}
-                placeholder="Enter your access token"
+                placeholder="Enter your gateway token"
                 placeholderTextColor={COLORS.textSecondary}
                 secureTextEntry={!showToken}
                 autoCapitalize="none"
@@ -100,6 +110,9 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
                 <Text style={styles.toggleText}>{showToken ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
             </View>
+            <Text style={styles.hint}>
+              Found in Control UI URL: ?token=YOUR_TOKEN
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -109,9 +122,9 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Wake Word */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Wake Word</Text>
+          <Text style={styles.sectionTitle}>🎤 Wake Word</Text>
           <Text style={styles.sectionDescription}>
-            Choose the phrase that activates HeyClaw
+            Say this phrase to activate HeyClaw
           </Text>
           
           <View style={styles.wakeWordGrid}>
@@ -136,14 +149,16 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             ))}
           </View>
 
-          <Text style={styles.note}>
-            💡 Note: Custom wake words require a Picovoice Console account
-          </Text>
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>
+              💡 All wake words work offline using Porcupine - no cloud required!
+            </Text>
+          </View>
         </View>
 
         {/* Behavior */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Behavior</Text>
+          <Text style={styles.sectionTitle}>⚙️ Behavior</Text>
 
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
@@ -193,32 +208,59 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           )}
         </View>
 
-        {/* Platform Info */}
+        {/* Advanced Settings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Platform Features</Text>
-          
-          <View style={styles.featureList}>
-            <Text style={styles.featureItem}>
-              {PLATFORM_FEATURES.supportsBackgroundWakeWord ? '✅' : '❌'} Background wake word
-            </Text>
-            <Text style={styles.featureItem}>
-              {PLATFORM_FEATURES.supportsScreenOffOperation ? '✅' : '❌'} Screen off operation
-            </Text>
-            <Text style={styles.featureItem}>
-              {PLATFORM_FEATURES.supportsAutoStart ? '✅' : '❌'} Auto-start on boot
-            </Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.advancedHeader}
+            onPress={() => setShowAdvanced(!showAdvanced)}
+          >
+            <Text style={styles.sectionTitle}>🔧 Advanced</Text>
+            <Text style={styles.expandIcon}>{showAdvanced ? '▼' : '▶'}</Text>
+          </TouchableOpacity>
 
-          {Platform.OS === 'ios' && (
-            <Text style={styles.note}>
-              ℹ️ iOS limitations: Wake word detection only works while the app is open due to Apple restrictions.
-            </Text>
+          {showAdvanced && (
+            <View style={styles.advancedContent}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Picovoice Access Key (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={picovoiceKey}
+                  onChangeText={setPicovoiceKey}
+                  placeholder="For custom wake words only"
+                  placeholderTextColor={COLORS.textSecondary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.hint}>
+                  Only needed if you want to train custom wake words via console.picovoice.ai
+                </Text>
+              </View>
+
+              {/* Platform Info */}
+              <View style={styles.featureList}>
+                <Text style={styles.featureItem}>
+                  {PLATFORM_FEATURES.supportsBackgroundWakeWord ? '✅' : '❌'} Background wake word
+                </Text>
+                <Text style={styles.featureItem}>
+                  {PLATFORM_FEATURES.supportsScreenOffOperation ? '✅' : '❌'} Screen off operation
+                </Text>
+                <Text style={styles.featureItem}>
+                  {PLATFORM_FEATURES.supportsAutoStart ? '✅' : '❌'} Auto-start on boot
+                </Text>
+              </View>
+
+              {Platform.OS === 'ios' && (
+                <Text style={styles.note}>
+                  ℹ️ iOS limitations: Wake word detection only works while the app is open due to Apple restrictions.
+                </Text>
+              )}
+            </View>
           )}
         </View>
 
         {/* Data */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data</Text>
+          <Text style={styles.sectionTitle}>🗑️ Data</Text>
           
           <TouchableOpacity
             style={styles.dangerButton}
@@ -229,7 +271,7 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
 
         {/* Version */}
-        <Text style={styles.version}>HeyClaw v0.1.0</Text>
+        <Text style={styles.version}>HeyClaw v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -271,6 +313,12 @@ const styles = StyleSheet.create({
     padding: 12,
     color: COLORS.text,
     fontSize: 16,
+  },
+  hint: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   tokenContainer: {
     flexDirection: 'row',
@@ -324,10 +372,20 @@ const styles = StyleSheet.create({
   wakeWordTextActive: {
     color: COLORS.text,
   },
+  infoBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 12,
+  },
+  infoText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
   note: {
     fontSize: 13,
     color: COLORS.textSecondary,
     fontStyle: 'italic',
+    marginTop: 12,
   },
   settingRow: {
     flexDirection: 'row',
@@ -350,11 +408,24 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 2,
   },
+  advancedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  expandIcon: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  advancedContent: {
+    marginTop: 16,
+  },
   featureList: {
     backgroundColor: COLORS.surface,
     borderRadius: 8,
     padding: 12,
     gap: 8,
+    marginTop: 16,
   },
   featureItem: {
     fontSize: 14,
