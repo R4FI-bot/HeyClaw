@@ -333,7 +333,7 @@ class WebSocketService {
     }
 
     const params = {
-      sessionKey: 'main',
+      sessionKey: 'agent:main:main',
       message,
       idempotencyKey: this.nextId(),
     };
