@@ -47,11 +47,6 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   useEffect(() => {
     const initializeServices = async () => {
       try {
-        // Connect WebSocket if we have settings
-        if (settings.gatewayUrl && settings.gatewayToken) {
-          setConnectionState('connecting');
-          webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
-        }
 
         // Configure STT service (Vosk needs model path)
         sttService.configure({
@@ -91,7 +86,6 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // Reconnect when settings change
   useEffect(() => {
     if (settings.gatewayUrl && settings.gatewayToken) {
-      webSocketService.disconnect();
       setConnectionState('connecting');
       webSocketService.connect(settings.gatewayUrl, settings.gatewayToken);
     }

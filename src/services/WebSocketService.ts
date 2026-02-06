@@ -78,6 +78,9 @@ class WebSocketService {
       wsUrl = `ws://${wsUrl}`;
     }
     
+    if (this.url !== wsUrl || this.token !== token) {
+      this.disconnect();
+    }
     this.url = wsUrl;
     this.token = token;
     this.isIntentionalClose = false;
