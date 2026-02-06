@@ -40,7 +40,7 @@ const CLIENT_INFO = {
   displayName: 'HeyClaw',
   version: '1.0.0',
   platform: 'android',
-  mode: 'operator',
+  mode: 'cli',
 };
 class WebSocketService {
   private ws: WebSocket | null = null;
