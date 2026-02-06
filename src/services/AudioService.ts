@@ -28,7 +28,7 @@ class AudioService {
   private isProcessingQueue: boolean = false;
 
   constructor() {
-    this.audioRecorderPlayer = new AudioRecorderPlayer();
+    this.audioRecorderPlayer = AudioRecorderPlayer;
   }
 
   /**

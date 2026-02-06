@@ -35,11 +35,11 @@ const PROTOCOL_VERSION = 3;
 
 // App info
 const CLIENT_INFO = {
-  id: 'heyclaw',
+  id: 'openclaw-android',
   displayName: 'HeyClaw',
   version: '1.0.0',
   platform: 'android',
-  mode: 'voice',
+  mode: 'cli',
 };
 
 class WebSocketService {
