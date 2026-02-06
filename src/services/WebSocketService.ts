@@ -7,6 +7,7 @@
  * 3. Receive responses as chat events
  */
 
+import { AppState, AppStateStatus } from 'react-native';
 import { WS_CONFIG } from '../constants';
 import type {
   OpenClawMessage,
@@ -60,6 +61,32 @@ class WebSocketService {
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   }> = new Map();
+  private appStateSubscription: any = null;
+  private lastAppState: AppStateStatus = 'active';
+
+  constructor() {
+    // Listen for app state changes to handle reconnection
+    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+  }
+
+  /**
+   * Handle app state changes (background/foreground)
+   */
+  private handleAppStateChange = (nextAppState: AppStateStatus): void => {
+    console.log('[WebSocket] AppState:', this.lastAppState, '->', nextAppState);
+    
+    if (this.lastAppState.match(/inactive|background/) && nextAppState === 'active') {
+      // App came to foreground - check connection
+      console.log('[WebSocket] App foregrounded, checking connection...');
+      if (!this.isConnected && this.url && this.token) {
+        console.log('[WebSocket] Reconnecting...');
+        this.reconnectAttempts = 0;
+        this.doConnect();
+      }
+    }
+    
+    this.lastAppState = nextAppState;
+  };
 
   /**
    * Generate unique request ID
