@@ -40,9 +40,7 @@ const CLIENT_INFO = {
   displayName: 'HeyClaw',
   version: '1.0.0',
   platform: 'android',
-  mode: 'cli',
-  role: 'operator',
-  scopes: ['operator.read', 'operator.write'],
+  mode: 'operator',
 };
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -134,6 +132,8 @@ class WebSocketService {
         token: this.token,
       },
       client: CLIENT_INFO,
+      role: 'operator',
+      scopes: ['operator.read', 'operator.write'],
     };
 
     const result = await this.sendRequest('connect', params);
