@@ -10,6 +10,7 @@
     <!-- Foreground Service for Background Wake Word -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     
     <!-- Wake Lock to keep CPU running with screen off -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -64,6 +65,12 @@
             <action android:name="android.intent.action.BOOT_COMPLETED" />
         </intent-filter>
       </receiver>
+      
+      <!-- Background Actions Service (Android 14+ requires foregroundServiceType) -->
+      <service
+        android:name="com.asterinet.react.bgactions.RNBackgroundActionsTask"
+        android:foregroundServiceType="microphone|mediaPlayback"
+        android:exported="false" />
       
     </application>
 </manifest>
