@@ -5,6 +5,7 @@
 
 import React, { useEffect, useCallback } from 'react';
 import {
+  StatusBar,
   View,
   StyleSheet,
   SafeAreaView,
@@ -435,7 +436,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 12,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 24,

@@ -34,14 +34,16 @@ type ErrorHandler = (error: string) => void;
 const PROTOCOL_VERSION = 3;
 
 // App info
+
 const CLIENT_INFO = {
   id: 'openclaw-android',
   displayName: 'HeyClaw',
   version: '1.0.0',
   platform: 'android',
   mode: 'cli',
+  role: 'operator',
+  scopes: ['operator.read', 'operator.write'],
 };
-
 class WebSocketService {
   private ws: WebSocket | null = null;
   private url: string = '';
