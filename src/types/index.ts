@@ -153,6 +153,7 @@ export interface AppState {
   // Conversation
   conversation: ConversationItem[];
   addMessage: (item: ConversationItem) => void;
+  updateMessage: (id: string, content: string) => void;
   clearConversation: () => void;
   
   // Audio playback queue

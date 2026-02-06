@@ -3,7 +3,7 @@
  * Main screen with listening button and conversation
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import {
   StatusBar,
   View,
@@ -39,11 +39,15 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     setConnectionState,
     setListeningState,
     addMessage,
+    updateMessage,
     listeningState,
     setError,
   } = useAppStore();
 
   // Initialize services on mount
+  // Track streaming message for delta updates
+  const streamingMessageRef = useRef<{ runId: string; messageId: string } | null>(null);
+
   useEffect(() => {
     const initializeServices = async () => {
       try {
@@ -147,56 +151,77 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   // WebSocket chat handler (responses from assistant)
   useEffect(() => {
     const unsubscribe = webSocketService.onChat((payload: any) => {
-      console.log('[Home] Chat received:', JSON.stringify(payload));
+      console.log("[Home] Chat received:", payload.state, payload.runId);
       
       // Extract text from gateway format: payload.message.content[0].text
-      let text = '';
-      let role = '';
+      let text = "";
+      let role = "";
       let timestamp = Date.now();
       
       if (payload.message) {
-        role = payload.message.role || '';
+        role = payload.message.role || "";
         timestamp = payload.message.timestamp || Date.now();
         if (payload.message.content && Array.isArray(payload.message.content)) {
-          const textContent = payload.message.content.find((c: any) => c.type === 'text');
+          const textContent = payload.message.content.find((c: any) => c.type === "text");
           if (textContent) {
-            text = textContent.text || '';
+            text = textContent.text || "";
           }
         }
       } else if (payload.text) {
-        // Fallback to old format
         text = payload.text;
-        role = payload.role || '';
+        role = payload.role || "";
         timestamp = payload.timestamp || Date.now();
       }
       
-      if (text && role === 'assistant') {
-        // Add assistant response to conversation
-        addMessage({
-          id: `msg-${Date.now()}`,
-          type: 'assistant',
-          content: text,
-          timestamp,
-        });
-
-        // Auto-play TTS if enabled
-        if (settings.autoPlayResponses) {
-          // Check if gateway sent audio in payload.message.content
-          const audioContent = payload.message?.content?.find((c: any) => c.type === 'audio');
+      if (!text || role !== "assistant") return;
+      
+      const runId = payload.runId || "unknown";
+      const state = payload.state || "final";
+      
+      if (state === "delta") {
+        // Streaming update
+        if (streamingMessageRef.current?.runId === runId) {
+          updateMessage(streamingMessageRef.current.messageId, text);
+        } else {
+          const messageId = `msg-${Date.now()}`;
+          streamingMessageRef.current = { runId, messageId };
+          addMessage({
+            id: messageId,
+            type: "assistant",
+            content: text,
+            timestamp,
+          });
+        }
+      } else if (state === "final") {
+        if (streamingMessageRef.current?.runId === runId) {
+          updateMessage(streamingMessageRef.current.messageId, text);
+          streamingMessageRef.current = null;
+        } else {
+          addMessage({
+            id: `msg-${Date.now()}`,
+            type: "assistant",
+            content: text,
+            timestamp,
+          });
+        }
+        
+        // Auto-play TTS only on final
+        if (settings.autoPlayResponses && text) {
+          const audioContent = payload.message?.content?.find((c: any) => c.type === "audio");
           if (audioContent && (audioContent.url || audioContent.base64)) {
             audioService.queueAudio(audioContent.url || audioContent.base64);
-            return;
+          } else {
+            ttsService.speak(text).catch(err => {
+              console.error("[Home] TTS failed:", err);
+            });
           }
-          // Otherwise, use our TTS service to speak the text
-          ttsService.speak(text).catch(err => {
-            console.error('[Home] TTS failed:', err);
-          });
         }
       }
     });
 
     return unsubscribe;
-  }, [settings.autoPlayResponses, addMessage]);
+  }, [settings.autoPlayResponses, addMessage, updateMessage]);
+
 
   // Start wake word detection using Vosk
   const startWakeWordDetection = useCallback(async () => {

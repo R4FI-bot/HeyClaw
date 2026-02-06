@@ -36,6 +36,12 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           conversation: [...state.conversation, item],
         })),
+      updateMessage: (id, content) =>
+        set((state) => ({
+          conversation: state.conversation.map((msg) =>
+            msg.id === id ? { ...msg, content } : msg
+          ),
+        })),
       clearConversation: () => set({ conversation: [] }),
 
       // Audio queue
