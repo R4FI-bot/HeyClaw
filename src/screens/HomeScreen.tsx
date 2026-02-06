@@ -146,30 +146,49 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
   // WebSocket chat handler (responses from assistant)
   useEffect(() => {
-    const unsubscribe = webSocketService.onChat((payload: ChatEventPayload) => {
-      console.log('[Home] Chat received:', payload);
+    const unsubscribe = webSocketService.onChat((payload: any) => {
+      console.log('[Home] Chat received:', JSON.stringify(payload));
       
-      if (payload.text && payload.role === 'assistant') {
+      // Extract text from gateway format: payload.message.content[0].text
+      let text = '';
+      let role = '';
+      let timestamp = Date.now();
+      
+      if (payload.message) {
+        role = payload.message.role || '';
+        timestamp = payload.message.timestamp || Date.now();
+        if (payload.message.content && Array.isArray(payload.message.content)) {
+          const textContent = payload.message.content.find((c: any) => c.type === 'text');
+          if (textContent) {
+            text = textContent.text || '';
+          }
+        }
+      } else if (payload.text) {
+        // Fallback to old format
+        text = payload.text;
+        role = payload.role || '';
+        timestamp = payload.timestamp || Date.now();
+      }
+      
+      if (text && role === 'assistant') {
         // Add assistant response to conversation
         addMessage({
           id: `msg-${Date.now()}`,
           type: 'assistant',
-          content: payload.text,
-          timestamp: payload.timestamp || Date.now(),
+          content: text,
+          timestamp,
         });
 
         // Auto-play TTS if enabled
         if (settings.autoPlayResponses) {
-          // Check if gateway sent audio
-          if (payload.media) {
-            const audioMedia = payload.media.find(m => m.type.startsWith('audio'));
-            if (audioMedia && (audioMedia.url || audioMedia.base64)) {
-              audioService.queueAudio(audioMedia.url || audioMedia.base64!);
-              return;
-            }
+          // Check if gateway sent audio in payload.message.content
+          const audioContent = payload.message?.content?.find((c: any) => c.type === 'audio');
+          if (audioContent && (audioContent.url || audioContent.base64)) {
+            audioService.queueAudio(audioContent.url || audioContent.base64);
+            return;
           }
           // Otherwise, use our TTS service to speak the text
-          ttsService.speak(payload.text).catch(err => {
+          ttsService.speak(text).catch(err => {
             console.error('[Home] TTS failed:', err);
           });
         }
